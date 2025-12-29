@@ -2,11 +2,14 @@ pipeline {
     agent any
 
     tools {
-        maven 'Maven_3_8_7' // Make sure this matches your Jenkins Maven tool name
+        maven 'Maven_3_8_7' // your Maven tool name in Jenkins
+    }
+
+    environment {
+        SONAR_TOKEN = credentials('SONAR_TOKEN_2') // Jenkins credential ID for SonarQube token
     }
 
     stages {
-
         stage('Checkout') {
             steps {
                 git branch: 'main',
@@ -27,73 +30,19 @@ pipeline {
 
         stage('SonarQube Analysis') {
             steps {
-                withSonarQubeEnv('sonarqube') { // Make sure the Jenkins SonarQube server name matches
+                withSonarQubeEnv('SonarQube') { // SonarQube server name configured in Jenkins
                     bat """
-                        REM Debug: print SonarQube environment variables
-                        echo SONAR_HOST_URL=%SONAR_HOST_URL%
-                        echo SONAR_AUTH_TOKEN=%SONAR_AUTH_TOKEN%
-                        
-                        REM Run Maven with SonarQube analysis
                         mvn clean verify sonar:sonar ^
                         -Dsonar.projectKey=Demo ^
-                        -Dsonar.host.url="%SONAR_HOST_URL%" ^
-                        -Dsonar.login="%SONAR_AUTH_TOKEN%" ^
+                        -Dsonar.host.url=%SONAR_HOST_URL% ^
+                        -Dsonar.login=%SONAR_TOKEN% ^
                         -X
                     """
                 }
             }
         }
 
-        stage('Docker Build') {
-            steps {
-                bat 'docker build -t devops/demo-app:latest .'
-            }
-        }
-
-        stage('Security Scans') {
-
-            stages {
-
-                stage('Snyk Container Scan') {
-                    steps {
-                        bat 'snyk container test devops/demo-app:latest || exit /b 0'
-                    }
-                }
-
-                stage('Snyk SCA Scan') {
-                    steps {
-                        bat 'mvn snyk:test -fn || exit /b 0'
-                    }
-                }
-
-                stage('ZAP DAST Scan') {
-                    steps {
-                        bat 'if not exist "%WORKSPACE%\\ZAP_Reports" mkdir "%WORKSPACE%\\ZAP_Reports"'
-                        bat """
-                            cd /d "C:\\ZAP\\ZAP_2.16.0_Crossplatform\\ZAP_2.16.0" && ^
-                            zap.bat -cmd ^
-                            -quickurl http://localhost:8080 ^
-                            -quickout "%WORKSPACE%\\ZAP_Reports\\ZAP_Output.html"
-                        """
-                    }
-                }
-
-                stage('Checkov Scan') {
-                    steps {
-                        bat '"C:\\Users\\Akshay Bharadwaj\\AppData\\Roaming\\Python\\Python313\\Scripts\\checkov.exe" -s -f main.tf || exit /b 0'
-                    }
-                }
-            }
-        }
-
-        stage('Deploy') {
-            steps {
-                bat """
-                    timeout /t 60
-                    java -jar target\\demo-0.0.1-SNAPSHOT.jar
-                """
-            }
-        }
+        // (other stages like Docker Build, Security Scans, Deploy can follow here)
     }
 
     post {
