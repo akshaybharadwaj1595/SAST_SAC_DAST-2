@@ -1,29 +1,19 @@
-# Stage 1: Build with Maven
-FROM maven:3.8.7-eclipse-temurin-17 AS builder
-
-# Copy project files
-COPY . /usr/src/demo/
-WORKDIR /usr/src/demo/
-
-# Build the project
-RUN mvn clean package -B
-
-# Optional: list the target folder to debug
-RUN ls -l /usr/src/demo/target/
+# Stage 1: Build with Maven (Java 17)
+FROM maven:3.8.8-openjdk-17 AS builder
+WORKDIR /usr/src/demo
+COPY pom.xml .
+COPY src ./src
+RUN mvn clean package -DskipTests
 
 # Stage 2: Runtime
 FROM eclipse-temurin:17-jdk-jammy
 WORKDIR /app
 
-# Copy the WAR file from the builder stage
-COPY --from=builder /usr/src/demo/target/demo.war ./demo.war
-
-# Copy start script
-COPY start.sh ./start.sh
-RUN chmod +x ./start.sh
+# Copy the Spring Boot JAR from the builder stage
+COPY --from=builder /usr/src/demo/target/demo-0.0.1-SNAPSHOT.jar ./demo.jar
 
 # Expose port your app will run on
 EXPOSE 8080
 
 # Run the application
-CMD ["./start.sh"]
+ENTRYPOINT ["java","-jar","demo.jar"]
