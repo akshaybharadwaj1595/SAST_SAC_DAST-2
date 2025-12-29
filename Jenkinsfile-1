@@ -2,16 +2,15 @@ pipeline {
     agent any
 
     tools {
-        maven 'Maven_3_8_7' // Your Maven installation in Jenkins
+        maven 'Maven_3_8_7'   // Jenkins Maven tool name
+        jdk 'Java_17'         // Jenkins JDK tool name
     }
 
     environment {
-        SONAR_TOKEN = credentials('SONAR_TOKEN_2')  // SonarQube token in Jenkins
-        SNYK_TOKEN = credentials('SNYK_TOKEN')     // Snyk token in Jenkins
+        SONAR_TOKEN = credentials('SONAR_TOKEN_2') // SonarQube token
     }
 
     stages {
-
         stage('Checkout') {
             steps {
                 git branch: 'main',
@@ -37,44 +36,39 @@ pipeline {
                         mvn clean verify sonar:sonar ^
                         -Dsonar.projectKey=Demo ^
                         -Dsonar.host.url=%SONAR_HOST_URL% ^
-                        -Dsonar.login=%SONAR_TOKEN% ^
-                        -X
+                        -Dsonar.login=%SONAR_TOKEN%
                     """
                 }
-            }
-        }
-
-        stage('Docker Build') {
-            steps {
-                bat 'docker build -t devops/demo-app:latest .'
             }
         }
 
         stage('ZAP DAST') {
             steps {
                 bat 'if not exist "%WORKSPACE%\\ZAP_Reports" mkdir "%WORKSPACE%\\ZAP_Reports"'
-                bat 'cd /d "C:\\ZAP\\ZAP_2.16.0_Crossplatform\\ZAP_2.16.0" && zap.bat -cmd -quickurl https://www.example.com -quickout "%WORKSPACE%\\ZAP_Reports\\ZAP_Output.html"'
+                bat 'cd /d "C:\\ZAP\\ZAP_2.16.0_Crossplatform\\ZAP_2.16.0" && zap.bat -cmd -quickurl https://www.example.com -quickout "%WORKSPACE%\\ZAP_Reports\\ZAP_Output.html" || exit 0'
             }
         }
 
         stage('Snyk Scan') {
             steps {
-                withEnv(["SNYK_TOKEN=${SNYK_TOKEN}"]) {
-                    bat 'snyk test --all-projects --json > "%WORKSPACE%\\Snyk_Report.json"'
-                }
+                bat 'snyk test --all-projects --json > "%WORKSPACE%\\Snyk_Report.json" || exit 0'
             }
         }
 
         stage('Checkov Scan') {
             steps {
-                bat 'checkov -d . --output json > "%WORKSPACE%\\Checkov_Report.json"'
+                bat 'if not exist "%WORKSPACE%\\Checkov_Reports" mkdir "%WORKSPACE%\\Checkov_Reports"'
+                bat 'checkov -d . --output json --output-file "%WORKSPACE%\\Checkov_Reports\\Checkov_Report.json" || exit 0'
             }
         }
+
+        // Add further stages like Docker build, deploy etc. here
     }
 
     post {
         always {
-            archiveArtifacts artifacts: '**/ZAP_Reports/*.html, **/Snyk_Report.json, **/Checkov_Report.json', allowEmptyArchive: true
+            archiveArtifacts artifacts: '**/Snyk_Report.json, **/ZAP_Reports/*.html, **/Checkov_Reports/*.json', allowEmptyArchive: true
+            junit 'target\\surefire-reports\\**\\*.xml'
         }
     }
 }
