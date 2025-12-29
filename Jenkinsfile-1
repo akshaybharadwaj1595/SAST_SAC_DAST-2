@@ -2,7 +2,7 @@ pipeline {
     agent any
 
     tools {
-        maven 'Maven_3_8_7'
+        maven 'Maven_3_8_7'  // Make sure this matches your Jenkins Maven installation name
     }
 
     stages {
@@ -31,8 +31,8 @@ pipeline {
                     bat '''
                         mvn clean verify sonar:sonar ^
                         -Dsonar.projectKey=devops-project-key ^
-                        -Dsonar.host.url=%SONAR_HOST_URL% ^
-                        -Dsonar.login=%SONAR_AUTH_TOKEN%
+                        -Dsonar.host.url="%SONAR_HOST_URL%" ^
+                        -Dsonar.login="%SONAR_AUTH_TOKEN%"
                     '''
                 }
             }
