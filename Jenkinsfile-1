@@ -2,16 +2,16 @@ pipeline {
     agent any
 
     tools {
-        maven 'Maven_3_8_7' // Jenkins Maven tool
-        jdk 'Java_17'        // Jenkins Java tool
+        maven 'Maven_3_8_7' // Your Maven installation in Jenkins
     }
 
     environment {
-        SONAR_TOKEN = credentials('SONAR_TOKEN_2') // SonarQube token
-        SNYK_TOKEN = credentials('SNYK_TOKEN')    // Snyk token
+        SONAR_TOKEN = credentials('SONAR_TOKEN_2')  // SonarQube token in Jenkins
+        SNYK_TOKEN = credentials('SNYK_TOKEN')     // Snyk token in Jenkins
     }
 
     stages {
+
         stage('Checkout') {
             steps {
                 git branch: 'main',
@@ -50,7 +50,7 @@ pipeline {
             }
         }
 
-        stage('ZAP DAST Scan') {
+        stage('ZAP DAST') {
             steps {
                 bat 'if not exist "%WORKSPACE%\\ZAP_Reports" mkdir "%WORKSPACE%\\ZAP_Reports"'
                 bat 'cd /d "C:\\ZAP\\ZAP_2.16.0_Crossplatform\\ZAP_2.16.0" && zap.bat -cmd -quickurl https://www.example.com -quickout "%WORKSPACE%\\ZAP_Reports\\ZAP_Output.html"'
@@ -59,26 +59,22 @@ pipeline {
 
         stage('Snyk Scan') {
             steps {
-                bat 'if not exist "%WORKSPACE%\\Snyk_Reports" mkdir "%WORKSPACE%\\Snyk_Reports"'
-                bat 'snyk auth %SNYK_TOKEN%'
-                bat 'snyk test --all-projects --json > "%WORKSPACE%\\Snyk_Reports\\snyk-report.json"'
+                withEnv(["SNYK_TOKEN=${SNYK_TOKEN}"]) {
+                    bat 'snyk test --all-projects --json > "%WORKSPACE%\\Snyk_Report.json"'
+                }
             }
         }
 
         stage('Checkov Scan') {
             steps {
-                bat 'if not exist "%WORKSPACE%\\Checkov_Reports" mkdir "%WORKSPACE%\\Checkov_Reports"'
-                bat 'checkov -d . --output json > "%WORKSPACE%\\Checkov_Reports\\checkov-report.json"'
+                bat 'checkov -d . --output json > "%WORKSPACE%\\Checkov_Report.json"'
             }
         }
     }
 
     post {
         always {
-            archiveArtifacts artifacts: '**/target/*.jar', allowEmptyArchive: true
-            archiveArtifacts artifacts: 'ZAP_Reports/*.html', allowEmptyArchive: true
-            archiveArtifacts artifacts: 'Snyk_Reports/*.json', allowEmptyArchive: true
-            archiveArtifacts artifacts: 'Checkov_Reports/*.json', allowEmptyArchive: true
+            archiveArtifacts artifacts: '**/ZAP_Reports/*.html, **/Snyk_Report.json, **/Checkov_Report.json', allowEmptyArchive: true
         }
     }
 }
