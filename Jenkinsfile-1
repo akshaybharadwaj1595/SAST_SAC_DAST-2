@@ -2,12 +2,11 @@ pipeline {
     agent any
 
     tools {
-        maven 'Maven_3_8_7'  // Must match your Jenkins Maven installation
+        maven 'Maven_3_8_7'  // Must match your Jenkins Maven installation name
     }
 
     stages {
 
-        // Stage 1: Checkout code
         stage('Checkout') {
             steps {
                 git branch: 'main',
@@ -15,7 +14,6 @@ pipeline {
             }
         }
 
-        // Stage 2: Build and Unit Test
         stage('Build & Unit Test') {
             steps {
                 bat 'mvn clean install'
@@ -27,16 +25,13 @@ pipeline {
             }
         }
 
-        // Stage 3: SonarQube Analysis with debug logging
         stage('SonarQube Analysis') {
             steps {
-                withSonarQubeEnv('sonarqube') {
+                withSonarQubeEnv('SonarQube') {  // <-- Use exact name from Jenkins config
                     bat '''
-                        REM Debug: print SonarQube environment variables
                         echo SONAR_HOST_URL=%SONAR_HOST_URL%
-                        echo SONAR_AUTH_TOKEN=%SONAR_AUTH_TOKEN%
-                        
-                        REM Run Maven with SonarQube analysis and debug output
+                        echo SONAR_AUTH_TOKEN=****
+
                         mvn clean verify sonar:sonar ^
                         -X ^
                         -Dsonar.projectKey=devops-project-key ^
@@ -47,7 +42,6 @@ pipeline {
             }
         }
 
-        // Stage 4: Quality Gate check
         stage('Quality Gate') {
             steps {
                 timeout(time: 5, unit: 'MINUTES') {
@@ -56,14 +50,12 @@ pipeline {
             }
         }
 
-        // Stage 5: Docker Build
         stage('Docker Build') {
             steps {
                 bat 'docker build -t devops/demo-app:latest .'
             }
         }
 
-        // Stage 6: Security Scans
         stage('Security Scans') {
 
             stages {
@@ -100,7 +92,6 @@ pipeline {
             }
         }
 
-        // Stage 7: Deploy
         stage('Deploy') {
             steps {
                 bat '''
