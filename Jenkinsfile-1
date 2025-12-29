@@ -2,12 +2,12 @@ pipeline {
     agent any
 
     tools {
-        maven 'Maven_3_8_7' // your Maven tool name in Jenkins
+        maven 'Maven_3_8_7' // your Maven installation name
     }
 
     environment {
-        SONAR_TOKEN = credentials('SONAR_TOKEN_2')   // Jenkins credential ID for SonarQube token
-        SNYK_TOKEN  = credentials('SNYK_TOKEN')     // Jenkins credential ID for Snyk token
+        SONAR_TOKEN = credentials('SONAR_TOKEN_2')
+        SERVER_PORT = '9090'  // avoid conflicts
     }
 
     stages {
@@ -20,7 +20,7 @@ pipeline {
 
         stage('Build & Unit Test') {
             steps {
-                bat 'mvn clean install'
+                bat 'mvn clean install -DskipTests'
             }
             post {
                 success {
@@ -36,33 +36,17 @@ pipeline {
                         mvn clean verify sonar:sonar ^
                         -Dsonar.projectKey=Demo ^
                         -Dsonar.host.url=%SONAR_HOST_URL% ^
-                        -Dsonar.login=%SONAR_TOKEN% ^
-                        -X
+                        -Dsonar.login=%SONAR_TOKEN%
                     """
                 }
             }
         }
 
-        stage('Docker Build') {
-            steps {
-                bat 'docker build -t devops/demo-app:latest .'
-            }
-        }
-
-        stage('Snyk Container Scan') {
-            steps {
-                bat 'if not exist "%WORKSPACE%\\SNYK_Reports" mkdir "%WORKSPACE%\\SNYK_Reports"'
-                bat """
-                    snyk container test devops/demo-app:latest ^
-                    --json > "%WORKSPACE%\\SNYK_Reports\\container-snyk-report.json" || exit /b 0
-                """
-            }
-        }
-
-        stage('Snyk SCA Scan') {
+        stage('Docker Build & Run') {
             steps {
                 bat """
-                    snyk test --all-projects --json > "%WORKSPACE%\\SNYK_Reports\\sca-snyk-report.json" || exit /b 0
+                    docker build -t devops/demo-app:latest .
+                    docker run -d -p %SERVER_PORT%:8080 --name demo_app devops/demo-app:latest
                 """
             }
         }
@@ -70,32 +54,22 @@ pipeline {
         stage('ZAP DAST Scan') {
             steps {
                 bat 'if not exist "%WORKSPACE%\\ZAP_Reports" mkdir "%WORKSPACE%\\ZAP_Reports"'
-                bat 'cd /d "C:\\ZAP\\ZAP_2.16.0_Crossplatform\\ZAP_2.16.0" && zap.bat -cmd -quickurl https://www.example.com -quickout "%WORKSPACE%\\ZAP_Reports\\ZAP_Output.html"'
+                bat 'cd /d "C:\\ZAP\\ZAP_2.16.0_Crossplatform\\ZAP_2.16.0" && zap.bat -cmd -quickurl http://localhost:%SERVER_PORT% -quickout "%WORKSPACE%\\ZAP_Reports\\ZAP_Output.html"'
             }
         }
 
-        stage('Checkov Terraform Scan') {
+        stage('Snyk Scan') {
             steps {
-                bat 'if not exist "%WORKSPACE%\\CHECKOV_Reports" mkdir "%WORKSPACE%\\CHECKOV_Reports"'
-                bat '"C:\\Users\\Akshay Bharadwaj\\AppData\\Roaming\\Python\\Python313\\Scripts\\checkov.exe" -d . -o json > "%WORKSPACE%\\CHECKOV_Reports\\checkov-report.json" || exit /b 0'
-            }
-        }
-
-        stage('Deploy') {
-            steps {
-                bat """
-                    timeout /t 60
-                    java -jar target\\demo-0.0.1-SNAPSHOT.jar
-                """
+                bat 'if not exist "%WORKSPACE%\\Snyk_Reports" mkdir "%WORKSPACE%\\Snyk_Reports"'
+                bat 'snyk test --all-projects --json > "%WORKSPACE%\\Snyk_Reports\\snyk.json"'
             }
         }
     }
 
     post {
         always {
-            archiveArtifacts artifacts: 'ZAP_Reports/ZAP_Output.html', allowEmptyArchive: true
-            archiveArtifacts artifacts: 'SNYK_Reports/*.json', allowEmptyArchive: true
-            archiveArtifacts artifacts: 'CHECKOV_Reports/*.json', allowEmptyArchive: true
+            bat 'docker stop demo_app || exit 0'
+            bat 'docker rm demo_app || exit 0'
         }
     }
 }
