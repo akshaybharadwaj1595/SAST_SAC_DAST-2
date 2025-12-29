@@ -2,12 +2,13 @@ pipeline {
     agent any
 
     tools {
-        maven 'Maven_3_8_7' // your Maven installation name
+        maven 'Maven_3_8_7' // Jenkins Maven tool
+        jdk 'Java_17'        // Jenkins Java tool
     }
 
     environment {
-        SONAR_TOKEN = credentials('SONAR_TOKEN_2')
-        SERVER_PORT = '9090'  // avoid conflicts
+        SONAR_TOKEN = credentials('SONAR_TOKEN_2') // SonarQube token in Jenkins
+        SNYK_TOKEN = credentials('SNYK_TOKEN')    // Snyk token in Jenkins
     }
 
     stages {
@@ -20,56 +21,55 @@ pipeline {
 
         stage('Build & Unit Test') {
             steps {
-                bat 'mvn clean install -DskipTests'
+                bat 'mvn clean install'  // Runs tests
             }
             post {
                 success {
-                    junit 'target\\surefire-reports\\**\\*.xml'
+                    junit 'target\\surefire-reports\\**\\*.xml' // Record test results
                 }
             }
         }
 
         stage('SonarQube Analysis') {
             steps {
-                withSonarQubeEnv('SonarQube') {
+                withSonarQubeEnv('SonarQube') { 
                     bat """
                         mvn clean verify sonar:sonar ^
                         -Dsonar.projectKey=Demo ^
                         -Dsonar.host.url=%SONAR_HOST_URL% ^
-                        -Dsonar.login=%SONAR_TOKEN%
+                        -Dsonar.login=%SONAR_TOKEN% ^
+                        -X
                     """
                 }
             }
         }
 
-        stage('Docker Build & Run') {
+        stage('Docker Build') {
             steps {
-                bat """
-                    docker build -t devops/demo-app:latest .
-                    docker run -d -p %SERVER_PORT%:8080 --name demo_app devops/demo-app:latest
-                """
+                bat 'docker build -t devops/demo-app:latest .'
             }
         }
 
         stage('ZAP DAST Scan') {
             steps {
                 bat 'if not exist "%WORKSPACE%\\ZAP_Reports" mkdir "%WORKSPACE%\\ZAP_Reports"'
-                bat 'cd /d "C:\\ZAP\\ZAP_2.16.0_Crossplatform\\ZAP_2.16.0" && zap.bat -cmd -quickurl http://localhost:%SERVER_PORT% -quickout "%WORKSPACE%\\ZAP_Reports\\ZAP_Output.html"'
+                bat 'cd /d "C:\\ZAP\\ZAP_2.16.0_Crossplatform\\ZAP_2.16.0" && zap.bat -cmd -quickurl https://www.example.com -quickout "%WORKSPACE%\\ZAP_Reports\\ZAP_Output.html"'
             }
         }
 
         stage('Snyk Scan') {
             steps {
-                bat 'if not exist "%WORKSPACE%\\Snyk_Reports" mkdir "%WORKSPACE%\\Snyk_Reports"'
-                bat 'snyk test --all-projects --json > "%WORKSPACE%\\Snyk_Reports\\snyk.json"'
+                bat 'snyk auth %SNYK_TOKEN%'
+                bat 'snyk test --all-projects --json > "%WORKSPACE%\\Snyk_Reports\\snyk-report.json"'
             }
         }
     }
 
     post {
         always {
-            bat 'docker stop demo_app || exit 0'
-            bat 'docker rm demo_app || exit 0'
+            archiveArtifacts artifacts: '**/target/*.jar', allowEmptyArchive: true
+            archiveArtifacts artifacts: 'ZAP_Reports/*.html', allowEmptyArchive: true
+            archiveArtifacts artifacts: 'Snyk_Reports/*.json', allowEmptyArchive: true
         }
     }
 }
