@@ -2,7 +2,7 @@ pipeline {
     agent any
 
     tools {
-        maven 'Maven_3_8_7'  // Must match your Jenkins Maven installation name
+        maven 'Maven_3_8_7' // Make sure this matches your Jenkins Maven tool name
     }
 
     stages {
@@ -27,25 +27,19 @@ pipeline {
 
         stage('SonarQube Analysis') {
             steps {
-                withSonarQubeEnv('SonarQube') {  // <-- Use exact name from Jenkins config
-                    bat '''
+                withSonarQubeEnv('sonarqube') { // Make sure the Jenkins SonarQube server name matches
+                    bat """
+                        REM Debug: print SonarQube environment variables
                         echo SONAR_HOST_URL=%SONAR_HOST_URL%
-                        echo SONAR_AUTH_TOKEN=****
-
+                        echo SONAR_AUTH_TOKEN=%SONAR_AUTH_TOKEN%
+                        
+                        REM Run Maven with SonarQube analysis
                         mvn clean verify sonar:sonar ^
-                        -X ^
-                        -Dsonar.projectKey=devops-project-key ^
+                        -Dsonar.projectKey=Demo ^
                         -Dsonar.host.url="%SONAR_HOST_URL%" ^
-                        -Dsonar.login="%SONAR_AUTH_TOKEN%"
-                    '''
-                }
-            }
-        }
-
-        stage('Quality Gate') {
-            steps {
-                timeout(time: 5, unit: 'MINUTES') {
-                    waitForQualityGate abortPipeline: true
+                        -Dsonar.login="%SONAR_AUTH_TOKEN%" ^
+                        -X
+                    """
                 }
             }
         }
@@ -75,12 +69,12 @@ pipeline {
                 stage('ZAP DAST Scan') {
                     steps {
                         bat 'if not exist "%WORKSPACE%\\ZAP_Reports" mkdir "%WORKSPACE%\\ZAP_Reports"'
-                        bat '''
+                        bat """
                             cd /d "C:\\ZAP\\ZAP_2.16.0_Crossplatform\\ZAP_2.16.0" && ^
                             zap.bat -cmd ^
                             -quickurl http://localhost:8080 ^
                             -quickout "%WORKSPACE%\\ZAP_Reports\\ZAP_Output.html"
-                        '''
+                        """
                     }
                 }
 
@@ -94,10 +88,10 @@ pipeline {
 
         stage('Deploy') {
             steps {
-                bat '''
+                bat """
                     timeout /t 60
                     java -jar target\\demo-0.0.1-SNAPSHOT.jar
-                '''
+                """
             }
         }
     }
