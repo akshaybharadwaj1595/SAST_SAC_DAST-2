@@ -10,17 +10,17 @@ pipeline {
         stage('Checkout') {
             steps {
                 git branch: 'main',
-                    url: 'https://github.com/praveensirvi1212/jenkins_sonarqube_basic_project'
+                    url: 'https://github.com/akshaybharadwaj1595/SAST_SAC_DAST-2.git'
             }
         }
 
         stage('Build & Unit Test') {
             steps {
-                sh 'mvn clean install'
+                bat 'mvn clean install'
             }
             post {
                 success {
-                    junit 'target/surefire-reports/**/*.xml'
+                    junit 'target\\surefire-reports\\**\\*.xml'
                 }
             }
         }
@@ -28,11 +28,11 @@ pipeline {
         stage('SonarQube Analysis') {
             steps {
                 withSonarQubeEnv('sonarqube') {
-                    sh '''
-                        mvn clean verify sonar:sonar \
-                        -Dsonar.projectKey=devops-project-key \
-                        -Dsonar.host.url=$SONAR_HOST_URL \
-                        -Dsonar.login=$SONAR_AUTH_TOKEN
+                    bat '''
+                        mvn clean verify sonar:sonar ^
+                        -Dsonar.projectKey=devops-project-key ^
+                        -Dsonar.host.url=%SONAR_HOST_URL% ^
+                        -Dsonar.login=%SONAR_AUTH_TOKEN%
                     '''
                 }
             }
@@ -40,7 +40,7 @@ pipeline {
 
         stage('Docker Build') {
             steps {
-                sh 'docker build -t devops/demo-app:latest .'
+                bat 'docker build -t devops/demo-app:latest .'
             }
         }
 
@@ -50,30 +50,31 @@ pipeline {
 
                 stage('Snyk Container Scan') {
                     steps {
-                        sh 'snyk container test devops/demo-app:latest || true'
+                        bat 'snyk container test devops/demo-app:latest || exit /b 0'
                     }
                 }
 
                 stage('Snyk SCA Scan') {
                     steps {
-                        sh 'mvn snyk:test -fn || true'
+                        bat 'mvn snyk:test -fn || exit /b 0'
                     }
                 }
 
                 stage('ZAP DAST Scan') {
                     steps {
-                        sh '''
-                            mkdir -p ZAP_Reports
-                            zap.sh -cmd \
-                              -quickurl http://localhost:8080 \
-                              -quickout ZAP_Reports/ZAP_Output.html || true
+                        bat 'if not exist "%WORKSPACE%\\ZAP_Reports" mkdir "%WORKSPACE%\\ZAP_Reports"'
+                        bat '''
+                            cd /d "C:\\ZAP\\ZAP_2.16.0_Crossplatform\\ZAP_2.16.0" && ^
+                            zap.bat -cmd ^
+                            -quickurl http://localhost:8080 ^
+                            -quickout "%WORKSPACE%\\ZAP_Reports\\ZAP_Output.html"
                         '''
                     }
                 }
 
                 stage('Checkov Scan') {
                     steps {
-                        sh 'checkov -s -f main.tf || true'
+                        bat '"C:\\Users\\Akshay Bharadwaj\\AppData\\Roaming\\Python\\Python313\\Scripts\\checkov.exe" -s -f main.tf || exit /b 0'
                     }
                 }
             }
@@ -81,9 +82,9 @@ pipeline {
 
         stage('Deploy') {
             steps {
-                sh '''
-                    timeout 60s java -jar \
-                    target/demo-0.0.1-SNAPSHOT.jar || true
+                bat '''
+                    timeout /t 60
+                    java -jar target\\demo-0.0.1-SNAPSHOT.jar
                 '''
             }
         }
@@ -91,7 +92,7 @@ pipeline {
 
     post {
         always {
-            archiveArtifacts artifacts: 'ZAP_Reports/ZAP_Output.html',
+            archiveArtifacts artifacts: 'ZAP_Reports\\ZAP_Output.html',
                              allowEmptyArchive: true
         }
     }
