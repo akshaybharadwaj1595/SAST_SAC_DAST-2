@@ -1,8 +1,12 @@
-# Stage 1: Build with Maven
-FROM maven:3.8-jdk-8 AS builder
+# Stage 1: Build with Maven and Java 17
+FROM maven:3.8.7-eclipse-temurin-17 AS builder
+
+# Copy project files
 COPY . /usr/src/easybuggy/
 WORKDIR /usr/src/easybuggy/
-RUN mvn -B package
+
+# Build the project
+RUN mvn clean package -DskipTests
 
 # Stage 2: Runtime
 FROM eclipse-temurin:17-jdk-jammy
@@ -15,7 +19,7 @@ COPY --from=builder /usr/src/easybuggy/target/ROOT.war ./easybuggy.war
 COPY start.sh ./start.sh
 RUN chmod +x ./start.sh
 
-# Expose port your app will run on
+# Expose application port
 EXPOSE 8080
 
 # Run the application
