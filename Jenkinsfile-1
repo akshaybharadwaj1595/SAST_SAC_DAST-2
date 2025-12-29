@@ -2,7 +2,7 @@ pipeline {
     agent any
 
     tools {
-        maven 'maven-3.8.6'
+        maven 'Maven_3_8_7'
     }
 
     stages {
@@ -10,7 +10,7 @@ pipeline {
         stage('Checkout') {
             steps {
                 git branch: 'main',
-                    url: 'https://github.com/akshaybharadwaj1595/SAST_SAC_DAST-2.git'
+                    url: 'https://github.com/praveensirvi1212/jenkins_sonarqube_basic_project'
             }
         }
 
