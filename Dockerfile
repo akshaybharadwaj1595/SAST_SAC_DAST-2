@@ -1,5 +1,5 @@
 # Stage 1: Build with Maven
-FROM maven:3.8-jdk-17 AS builder
+FROM maven:3.8.7-eclipse-temurin-17 AS builder
 
 # Copy project files
 COPY . /usr/src/demo/
@@ -8,7 +8,7 @@ WORKDIR /usr/src/demo/
 # Build the project
 RUN mvn clean package -B
 
-# Optional: check target folder
+# Optional: list the target folder to debug
 RUN ls -l /usr/src/demo/target/
 
 # Stage 2: Runtime
